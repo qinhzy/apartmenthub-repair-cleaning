@@ -1,7 +1,3 @@
-DROP TABLE IF EXISTS rpt_repair_order;
-DROP TABLE IF EXISTS rpt_cleaning_plan;
-DROP TABLE IF EXISTS sys_user;
-
 CREATE TABLE sys_user (
     id BIGINT PRIMARY KEY,
     username VARCHAR(64) NOT NULL,
@@ -28,6 +24,12 @@ CREATE TABLE rpt_repair_order (
     CONSTRAINT chk_repair_priority CHECK (priority IN ('URGENT', 'NORMAL', 'LOW')),
     CONSTRAINT chk_repair_status CHECK (status IN ('PENDING', 'PROCESSING', 'WAITING_CHECK', 'COMPLETED')),
     CONSTRAINT chk_repair_fees CHECK (repair_fee >= 0 AND material_fee >= 0 AND total_fee = repair_fee + material_fee),
+    CONSTRAINT chk_repair_lifecycle CHECK (
+        (status = 'PENDING' AND assignee_id IS NULL AND assigned_at IS NULL AND completed_at IS NULL AND verified_at IS NULL)
+        OR (status = 'PROCESSING' AND assignee_id IS NOT NULL AND assigned_at IS NOT NULL AND completed_at IS NULL AND verified_at IS NULL)
+        OR (status = 'WAITING_CHECK' AND assignee_id IS NOT NULL AND assigned_at IS NOT NULL AND completed_at IS NOT NULL AND verified_at IS NULL)
+        OR (status = 'COMPLETED' AND assignee_id IS NOT NULL AND assigned_at IS NOT NULL AND completed_at IS NOT NULL AND verified_at IS NOT NULL)
+    ),
     CONSTRAINT fk_repair_reporter FOREIGN KEY (reporter_id) REFERENCES sys_user(id),
     CONSTRAINT fk_repair_assignee FOREIGN KEY (assignee_id) REFERENCES sys_user(id)
 );

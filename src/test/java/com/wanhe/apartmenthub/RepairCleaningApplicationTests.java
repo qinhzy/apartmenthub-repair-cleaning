@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -14,6 +16,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -23,6 +26,9 @@ class RepairCleaningApplicationTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     void repairOrderCanMoveThroughFullFlow() throws Exception {
@@ -39,7 +45,7 @@ class RepairCleaningApplicationTests {
         String reportResponse = mockMvc.perform(post("/api/repair/report")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reportBody))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING"))
                 .andReturn()
                 .getResponse()
@@ -86,7 +92,7 @@ class RepairCleaningApplicationTests {
                                   "reporterId": 1
                                 }
                                 """))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -120,7 +126,7 @@ class RepairCleaningApplicationTests {
                                   "remark": "Daily cleaning"
                                 }
                                 """))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING"))
                 .andReturn()
                 .getResponse()
@@ -163,6 +169,43 @@ class RepairCleaningApplicationTests {
         mockMvc.perform(get("/api/repair/page").param("size", "51"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors['page.size']").exists());
+    }
+
+    @Test
+    void malformedJsonReturnsTheStandardApiErrorShape() throws Exception {
+        mockMvc.perform(post("/api/repair/report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("malformed or invalid request body"))
+                .andExpect(jsonPath("$.errors").isEmpty());
+    }
+
+    @Test
+    void invalidEnumQueryParameterReturnsAFieldError() throws Exception {
+        mockMvc.perform(get("/api/repair/page").param("status", "NOT_A_STATUS"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("request parameter validation failed"))
+                .andExpect(jsonPath("$.errors.status").value("invalid value"));
+    }
+
+    @Test
+    void databaseRejectsRepairLifecycleStatesWithMissingTimestamps() {
+        assertThrows(DataIntegrityViolationException.class, () -> jdbcTemplate.update(
+                """
+                INSERT INTO rpt_repair_order
+                (title, repair_type, priority, status, reporter_id, assignee_id,
+                 repair_fee, material_fee, total_fee, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, CURRENT_TIMESTAMP)
+                """,
+                "Invalid lifecycle",
+                "NETWORK",
+                "NORMAL",
+                "PROCESSING",
+                1,
+                2
+        ));
     }
 
     private long readId(String json) throws Exception {

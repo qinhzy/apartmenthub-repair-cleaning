@@ -11,7 +11,7 @@
 ## 维修接口
 
 - `GET /api/repair/page`：维修工单分页查询
-- `POST /api/repair/report`：提交维修申报
+- `POST /api/repair/report`：提交维修申报，成功返回 `201 Created`
 - `PUT /api/repair/assign`：维修派单
 - `PUT /api/repair/complete`：维修完成
 - `PUT /api/repair/verify`：维修验收
@@ -31,7 +31,7 @@
 ## 保洁接口
 
 - `GET /api/cleaning/plans`：查询保洁计划
-- `POST /api/cleaning/plans`：新增保洁计划
+- `POST /api/cleaning/plans`：新增保洁计划，成功返回 `201 Created`
 - `PUT /api/cleaning/plans/{id}/start`：开始执行
 - `PUT /api/cleaning/plans/{id}/complete`：完成保洁
 - `PUT /api/cleaning/plans/{id}/skip`：跳过计划
@@ -47,6 +47,8 @@
 - 维修完成时自动计算费用：`totalFee = repairFee + materialFee`。
 - 状态流转使用带前置状态条件的原子更新；并发操作不会重复派单或覆盖已完成状态。
 - API 输入长度、ID、金额精度与数据库约束保持一致，并返回字段级校验错误。
+- 非法枚举、参数校验失败和错误 JSON 使用一致的错误响应结构，不暴露内部异常。
+- 数据库约束同步校验维修状态与派单、完成、验收时间，阻止绕过服务层写入无效生命周期。
 
 ## 运行方式
 
