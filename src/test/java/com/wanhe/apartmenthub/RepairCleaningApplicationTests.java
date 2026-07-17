@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
@@ -236,6 +237,10 @@ class RepairCleaningApplicationTests {
     @Test
     void dashboardPageIsServedFromTheApplication() throws Exception {
         mockMvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(forwardedUrl("index.html"));
+
+        mockMvc.perform(get("/index.html"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
                 .andExpect(content().string(containsString("ApartmentHub 公寓运维")))
