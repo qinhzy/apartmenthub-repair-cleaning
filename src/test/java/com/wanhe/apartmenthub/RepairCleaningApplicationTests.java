@@ -243,8 +243,8 @@ class RepairCleaningApplicationTests {
         mockMvc.perform(get("/index.html"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
-                .andExpect(content().string(containsString("ApartmentHub 公寓运维")))
-                .andExpect(content().string(containsString("新建维修工单")));
+                .andExpect(content().string(containsString("<title>ApartmentHub")))
+                .andExpect(content().string(containsString("id=\"new-repair-button\"")));
     }
 
     private long readId(String json) throws Exception {
