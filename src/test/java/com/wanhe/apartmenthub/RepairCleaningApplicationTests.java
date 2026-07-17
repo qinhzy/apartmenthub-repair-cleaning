@@ -139,9 +139,34 @@ class RepairCleaningApplicationTests {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    void reportValidationReturnsFieldLevelErrors() throws Exception {
+        String overlongTitle = "x".repeat(101);
+
+        mockMvc.perform(post("/api/repair/report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "%s",
+                                  "repairType": "NETWORK",
+                                  "priority": "NORMAL",
+                                  "reporterId": 1
+                                }
+                                """.formatted(overlongTitle)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("request parameter validation failed"))
+                .andExpect(jsonPath("$.errors.title").exists());
+    }
+
+    @Test
+    void pagingRejectsOutOfRangeSize() throws Exception {
+        mockMvc.perform(get("/api/repair/page").param("size", "51"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors['page.size']").exists());
+    }
+
     private long readId(String json) throws Exception {
         JsonNode node = objectMapper.readTree(json);
         return node.get("id").asLong();
     }
 }
-

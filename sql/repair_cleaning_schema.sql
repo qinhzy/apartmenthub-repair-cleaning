@@ -20,6 +20,10 @@ CREATE TABLE rpt_repair_order (
     assigned_at DATETIME NULL,
     completed_at DATETIME NULL,
     verified_at DATETIME NULL,
+    CONSTRAINT chk_repair_type CHECK (repair_type IN ('PLUMBING', 'FURNITURE', 'APPLIANCE', 'NETWORK', 'OTHER')),
+    CONSTRAINT chk_repair_priority CHECK (priority IN ('URGENT', 'NORMAL', 'LOW')),
+    CONSTRAINT chk_repair_status CHECK (status IN ('PENDING', 'PROCESSING', 'WAITING_CHECK', 'COMPLETED')),
+    CONSTRAINT chk_repair_fees CHECK (repair_fee >= 0 AND material_fee >= 0 AND total_fee = repair_fee + material_fee),
     CONSTRAINT fk_repair_reporter FOREIGN KEY (reporter_id) REFERENCES sys_user(id),
     CONSTRAINT fk_repair_assignee FOREIGN KEY (assignee_id) REFERENCES sys_user(id)
 );
@@ -32,6 +36,12 @@ CREATE TABLE rpt_cleaning_plan (
     status VARCHAR(30) NOT NULL,
     remark VARCHAR(500),
     created_at DATETIME NOT NULL,
-    updated_at DATETIME NOT NULL
+    updated_at DATETIME NOT NULL,
+    CONSTRAINT chk_cleaning_status CHECK (status IN ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'SKIPPED'))
 );
 
+CREATE INDEX idx_repair_status_type_created
+    ON rpt_repair_order (status, repair_type, created_at);
+CREATE INDEX idx_repair_reporter ON rpt_repair_order (reporter_id);
+CREATE INDEX idx_repair_assignee_status ON rpt_repair_order (assignee_id, status);
+CREATE INDEX idx_cleaning_date_status ON rpt_cleaning_plan (plan_date, status);

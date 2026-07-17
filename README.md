@@ -45,11 +45,13 @@
 - 只有 `PENDING` 状态的维修工单可以派单。
 - 派单人员通过 `assignee_id` 关联 `sys_user`。
 - 维修完成时自动计算费用：`totalFee = repairFee + materialFee`。
+- 状态流转使用带前置状态条件的原子更新；并发操作不会重复派单或覆盖已完成状态。
+- API 输入长度、ID、金额精度与数据库约束保持一致，并返回字段级校验错误。
 
 ## 运行方式
 
-```powershell
-..\apache-maven-3.9.4\bin\mvn.cmd spring-boot:run
+```bash
+mvn spring-boot:run
 ```
 
 启动后访问：
@@ -61,7 +63,6 @@ http://localhost:8080/api/cleaning/plans
 
 ## 测试方式
 
-```powershell
-..\apache-maven-3.9.4\bin\mvn.cmd test
+```bash
+mvn test
 ```
-

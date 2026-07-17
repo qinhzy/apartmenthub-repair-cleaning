@@ -1,20 +1,25 @@
 package com.wanhe.apartmenthub.dto;
 
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 
 import java.math.BigDecimal;
 
 public class RepairCompleteRequest {
     @NotNull
+    @Positive
     private Long orderId;
 
     @NotNull
     @PositiveOrZero
+    @Digits(integer = 8, fraction = 2)
     private BigDecimal repairFee;
 
     @NotNull
     @PositiveOrZero
+    @Digits(integer = 8, fraction = 2)
     private BigDecimal materialFee;
 
     public Long getOrderId() {
@@ -41,4 +46,3 @@ public class RepairCompleteRequest {
         this.materialFee = materialFee;
     }
 }
-

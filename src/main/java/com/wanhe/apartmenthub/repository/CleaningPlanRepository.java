@@ -76,12 +76,22 @@ public class CleaningPlanRepository {
         return result.stream().findFirst();
     }
 
-    public void updateStatus(Long id, CleaningStatus status, LocalDateTime updatedAt) {
-        jdbcTemplate.update(
-                "UPDATE rpt_cleaning_plan SET status = ?, updated_at = ? WHERE id = ?",
-                status.name(),
+    public int updateStatus(
+            Long id,
+            CleaningStatus expectedStatus,
+            CleaningStatus newStatus,
+            LocalDateTime updatedAt
+    ) {
+        return jdbcTemplate.update(
+                """
+                UPDATE rpt_cleaning_plan
+                SET status = ?, updated_at = ?
+                WHERE id = ? AND status = ?
+                """,
+                newStatus.name(),
                 Timestamp.valueOf(updatedAt),
-                id
+                id,
+                expectedStatus.name()
         );
     }
 
@@ -89,4 +99,3 @@ public class CleaningPlanRepository {
         return timestamp == null ? null : timestamp.toLocalDateTime();
     }
 }
-

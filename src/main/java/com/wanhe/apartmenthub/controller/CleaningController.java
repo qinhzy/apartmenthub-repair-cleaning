@@ -4,6 +4,8 @@ import com.wanhe.apartmenthub.dto.CreateCleaningPlanRequest;
 import com.wanhe.apartmenthub.model.CleaningPlan;
 import com.wanhe.apartmenthub.service.CleaningService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,6 +18,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/cleaning")
+@Validated
 public class CleaningController {
     private final CleaningService cleaningService;
 
@@ -34,18 +37,17 @@ public class CleaningController {
     }
 
     @PutMapping("/plans/{id}/start")
-    public CleaningPlan start(@PathVariable Long id) {
+    public CleaningPlan start(@PathVariable @Positive Long id) {
         return cleaningService.start(id);
     }
 
     @PutMapping("/plans/{id}/complete")
-    public CleaningPlan complete(@PathVariable Long id) {
+    public CleaningPlan complete(@PathVariable @Positive Long id) {
         return cleaningService.complete(id);
     }
 
     @PutMapping("/plans/{id}/skip")
-    public CleaningPlan skip(@PathVariable Long id) {
+    public CleaningPlan skip(@PathVariable @Positive Long id) {
         return cleaningService.skip(id);
     }
 }
-

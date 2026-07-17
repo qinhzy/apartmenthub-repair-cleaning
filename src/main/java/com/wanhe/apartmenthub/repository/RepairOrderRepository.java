@@ -76,7 +76,7 @@ public class RepairOrderRepository {
         return keyHolder.getKey().longValue();
     }
 
-    public List<RepairOrder> findPage(int offset, int size, RepairStatus status, RepairType type) {
+    public List<RepairOrder> findPage(long offset, int size, RepairStatus status, RepairType type) {
         QueryParts query = buildFilterSql(
                 "SELECT * FROM rpt_repair_order WHERE 1 = 1",
                 status,
@@ -115,46 +115,61 @@ public class RepairOrderRepository {
         return count != null && count > 0;
     }
 
-    public void assign(Long id, Long assigneeId, LocalDateTime assignedAt) {
-        jdbcTemplate.update(
+    public int assign(
+            Long id,
+            Long assigneeId,
+            LocalDateTime assignedAt,
+            RepairStatus expectedStatus
+    ) {
+        return jdbcTemplate.update(
                 """
                 UPDATE rpt_repair_order
                 SET assignee_id = ?, status = ?, assigned_at = ?
-                WHERE id = ?
+                WHERE id = ? AND status = ?
                 """,
                 assigneeId,
                 RepairStatus.PROCESSING.name(),
                 Timestamp.valueOf(assignedAt),
-                id
+                id,
+                expectedStatus.name()
         );
     }
 
-    public void complete(Long id, BigDecimal repairFee, BigDecimal materialFee, BigDecimal totalFee, LocalDateTime completedAt) {
-        jdbcTemplate.update(
+    public int complete(
+            Long id,
+            BigDecimal repairFee,
+            BigDecimal materialFee,
+            BigDecimal totalFee,
+            LocalDateTime completedAt,
+            RepairStatus expectedStatus
+    ) {
+        return jdbcTemplate.update(
                 """
                 UPDATE rpt_repair_order
                 SET repair_fee = ?, material_fee = ?, total_fee = ?, status = ?, completed_at = ?
-                WHERE id = ?
+                WHERE id = ? AND status = ?
                 """,
                 repairFee,
                 materialFee,
                 totalFee,
                 RepairStatus.WAITING_CHECK.name(),
                 Timestamp.valueOf(completedAt),
-                id
+                id,
+                expectedStatus.name()
         );
     }
 
-    public void verify(Long id, LocalDateTime verifiedAt) {
-        jdbcTemplate.update(
+    public int verify(Long id, LocalDateTime verifiedAt, RepairStatus expectedStatus) {
+        return jdbcTemplate.update(
                 """
                 UPDATE rpt_repair_order
                 SET status = ?, verified_at = ?
-                WHERE id = ?
+                WHERE id = ? AND status = ?
                 """,
                 RepairStatus.COMPLETED.name(),
                 Timestamp.valueOf(verifiedAt),
-                id
+                id,
+                expectedStatus.name()
         );
     }
 
@@ -184,4 +199,3 @@ public class RepairOrderRepository {
         }
     }
 }
-
