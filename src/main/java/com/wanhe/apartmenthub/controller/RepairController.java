@@ -12,6 +12,7 @@ import com.wanhe.apartmenthub.service.RepairService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -38,9 +39,10 @@ public class RepairController {
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(50) int size,
             @RequestParam(required = false) RepairStatus status,
-            @RequestParam(required = false) RepairType type
+            @RequestParam(required = false) RepairType type,
+            @RequestParam(required = false) @Size(max = 100) String query
     ) {
-        return repairService.page(page, size, status, type);
+        return repairService.page(page, size, status, type, query);
     }
 
     @PostMapping("/report")

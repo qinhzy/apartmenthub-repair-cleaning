@@ -15,8 +15,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.hamcrest.Matchers.containsString;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -123,11 +125,13 @@ class RepairCleaningApplicationTests {
                                   "area": "Building 2 lobby",
                                   "cleanerName": "Cleaner Zhang",
                                   "planDate": "2026-06-08",
+                                  "planTime": "09:30",
                                   "remark": "Daily cleaning"
                                 }
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.planTime").value("09:30:00"))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -206,6 +210,36 @@ class RepairCleaningApplicationTests {
                 1,
                 2
         ));
+    }
+
+    @Test
+    void dashboardSummaryReturnsNamesCountsAndTodaysPlans() throws Exception {
+        mockMvc.perform(get("/api/dashboard/summary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.date").exists())
+                .andExpect(jsonPath("$.generatedAt").exists())
+                .andExpect(jsonPath("$.totalRepairs").isNumber())
+                .andExpect(jsonPath("$.pendingRepairs").isNumber())
+                .andExpect(jsonPath("$.recentRepairs[0].reporterName").value("报修学生"))
+                .andExpect(jsonPath("$.todayCleaningPlans[0].planTime").exists());
+    }
+
+    @Test
+    void repairPageSupportsTextSearchAndReturnsUserNames() throws Exception {
+        mockMvc.perform(get("/api/repair/page").param("query", "公共区网络"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.records[0].title").value("公共区网络中断"))
+                .andExpect(jsonPath("$.records[0].reporterName").value("报修学生"));
+    }
+
+    @Test
+    void dashboardPageIsServedFromTheApplication() throws Exception {
+        mockMvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+                .andExpect(content().string(containsString("ApartmentHub 公寓运维")))
+                .andExpect(content().string(containsString("新建维修工单")));
     }
 
     private long readId(String json) throws Exception {

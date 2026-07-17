@@ -27,16 +27,27 @@ public class RepairService {
         this.repairOrderRepository = repairOrderRepository;
     }
 
-    public PageResult<RepairOrder> page(int page, int size, RepairStatus status, RepairType type) {
+    public PageResult<RepairOrder> page(
+            int page,
+            int size,
+            RepairStatus status,
+            RepairType type,
+            String query
+    ) {
         int safePage = Math.max(page, 1);
         int safeSize = Math.min(Math.max(size, 1), 50);
         long offset = (long) (safePage - 1) * safeSize;
+        String normalizedQuery = query == null ? null : query.trim();
         return new PageResult<>(
-                repairOrderRepository.findPage(offset, safeSize, status, type),
+                repairOrderRepository.findPage(offset, safeSize, status, type, normalizedQuery),
                 safePage,
                 safeSize,
-                repairOrderRepository.count(status, type)
+                repairOrderRepository.count(status, type, normalizedQuery)
         );
+    }
+
+    public PageResult<RepairOrder> page(int page, int size, RepairStatus status, RepairType type) {
+        return page(page, size, status, type, null);
     }
 
     public RepairOrder report(RepairReportRequest request) {

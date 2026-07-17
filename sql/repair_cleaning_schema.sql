@@ -39,6 +39,7 @@ CREATE TABLE rpt_cleaning_plan (
     area VARCHAR(100) NOT NULL,
     cleaner_name VARCHAR(64) NOT NULL,
     plan_date DATE NOT NULL,
+    plan_time TIME NULL,
     status VARCHAR(30) NOT NULL,
     remark VARCHAR(500),
     created_at DATETIME NOT NULL,

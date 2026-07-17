@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 public class CreateCleaningPlanRequest {
     @NotBlank
@@ -17,6 +18,8 @@ public class CreateCleaningPlanRequest {
 
     @NotNull
     private LocalDate planDate;
+
+    private LocalTime planTime;
 
     @Size(max = 500)
     private String remark;
@@ -43,6 +46,14 @@ public class CreateCleaningPlanRequest {
 
     public void setPlanDate(LocalDate planDate) {
         this.planDate = planDate;
+    }
+
+    public LocalTime getPlanTime() {
+        return planTime;
+    }
+
+    public void setPlanTime(LocalTime planTime) {
+        this.planTime = planTime;
     }
 
     public String getRemark() {

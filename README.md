@@ -2,6 +2,8 @@
 
 本项目是公寓管理系统中的维修保洁模块，包含维修工单和保洁计划两部分，可直接作为实训提交代码仓库。
 
+项目同时提供响应式运维工作台，覆盖维修工单搜索、筛选、分页、新建、派单、完工、验收，以及保洁计划的新建和状态流转。前端由 Spring Boot 直接托管，不需要额外安装 Node.js 依赖。
+
 ## 模块内容
 
 - 维修工单表：`rpt_repair_order`
@@ -10,7 +12,7 @@
 
 ## 维修接口
 
-- `GET /api/repair/page`：维修工单分页查询
+- `GET /api/repair/page`：维修工单分页查询，支持 `status`、`type` 和 `query` 筛选
 - `POST /api/repair/report`：提交维修申报，成功返回 `201 Created`
 - `PUT /api/repair/assign`：维修派单
 - `PUT /api/repair/complete`：维修完成
@@ -40,6 +42,13 @@
 
 `PENDING -> IN_PROGRESS -> COMPLETED / SKIPPED`
 
+保洁计划支持可选的 `planTime`（`HH:mm`），工作台会按时间排列当天任务。
+
+## 工作台接口
+
+- `GET /api/dashboard/summary`：一次返回首页指标、最近维修工单和当天保洁计划，避免页面串行请求。
+- 维修工单响应包含 `reporterName` 与 `assigneeName`，界面无需硬编码人员姓名。
+
 ## 关键规则
 
 - 只有 `PENDING` 状态的维修工单可以派单。
@@ -59,6 +68,7 @@ mvn spring-boot:run
 启动后访问：
 
 ```text
+http://localhost:8080/
 http://localhost:8080/api/repair/page
 http://localhost:8080/api/cleaning/plans
 ```
