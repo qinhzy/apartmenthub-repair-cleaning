@@ -28,7 +28,11 @@ const state = {
     activeTab: "repairs",
     dashboard: null,
     repairs: [],
-    refreshSequence: 0,
+    dashboardHealthy: null,
+    repairHealthy: null,
+    loadedRepairPage: 1,
+    dashboardSequence: 0,
+    repairSequence: 0,
     dialogSubmit: null,
 };
 
@@ -47,6 +51,10 @@ function init() {
         menuButton: byId("menu-button"),
         refreshButton: byId("refresh-button"),
         metrics: document.querySelector(".metrics"),
+        systemState: byId("system-state"),
+        systemStateLabel: byId("system-state-label"),
+        repairPanel: byId("repairs"),
+        repairSyncNote: byId("repair-sync-note"),
         repairTableBody: byId("repair-table-body"),
         repairMobileList: byId("repair-mobile-list"),
         repairEmpty: byId("repair-empty"),
@@ -70,6 +78,11 @@ function init() {
 function bindNavigation() {
     elements.menuButton.addEventListener("click", () => setSidebarOpen(!elements.sidebar.classList.contains("is-open")));
     elements.sidebarScrim.addEventListener("click", () => setSidebarOpen(false));
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && elements.sidebar.classList.contains("is-open")) {
+            setSidebarOpen(false, true);
+        }
+    });
 
     document.querySelectorAll("[data-nav]").forEach((link) => {
         link.addEventListener("click", () => {
@@ -83,8 +96,22 @@ function bindNavigation() {
         });
     });
 
-    document.querySelectorAll("[data-tab]").forEach((button) => {
+    const tabs = [...document.querySelectorAll("[data-tab]")];
+    tabs.forEach((button) => {
         button.addEventListener("click", () => setActiveTab(button.dataset.tab));
+    });
+    document.querySelector(".mobile-tabs").addEventListener("keydown", (event) => {
+        const currentIndex = tabs.indexOf(document.activeElement);
+        if (currentIndex < 0) return;
+        let nextIndex;
+        if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabs.length;
+        if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+        if (event.key === "Home") nextIndex = 0;
+        if (event.key === "End") nextIndex = tabs.length - 1;
+        if (nextIndex === undefined) return;
+        event.preventDefault();
+        setActiveTab(tabs[nextIndex].dataset.tab);
+        tabs[nextIndex].focus();
     });
 }
 
@@ -126,14 +153,22 @@ function bindActions() {
     byId("new-cleaning-button").addEventListener("click", openNewCleaningDialog);
     byId("dialog-close").addEventListener("click", closeDialog);
     byId("dialog-cancel").addEventListener("click", closeDialog);
+    elements.dialog.addEventListener("cancel", (event) => {
+        if (elements.dialogForm.getAttribute("aria-busy") === "true") {
+            event.preventDefault();
+        } else {
+            closeDialog();
+        }
+    });
     byId("toast-close").addEventListener("click", hideToast);
 
     elements.dialogForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         if (!state.dialogSubmit || !elements.dialogForm.reportValidity()) return;
+        const formData = new FormData(elements.dialogForm);
         setDialogLoading(true);
         try {
-            await state.dialogSubmit(new FormData(elements.dialogForm));
+            await state.dialogSubmit(formData);
             closeDialog();
             await refreshAll({ announce: false });
             showToast("操作成功");
@@ -162,35 +197,52 @@ function bindActions() {
 }
 
 async function refreshAll({ announce }) {
-    const sequence = ++state.refreshSequence;
+    const sequence = ++state.dashboardSequence;
     elements.refreshButton.disabled = true;
     elements.refreshButton.setAttribute("aria-busy", "true");
+    setSystemState("loading");
     try {
         const summary = await requestJson("/api/dashboard/summary");
-        if (sequence !== state.refreshSequence) return;
+        if (sequence !== state.dashboardSequence) return;
         state.dashboard = summary;
+        state.dashboardHealthy = true;
         renderDashboard(summary);
+        let repairLoaded = true;
         if (hasRepairFilters() || state.page !== 1) {
-            await loadRepairPage();
+            repairLoaded = await loadRepairPage();
         } else {
             state.repairs = summary.recentRepairs;
             state.total = summary.totalRepairs;
+            state.page = 1;
+            state.loadedRepairPage = 1;
+            state.repairHealthy = true;
             renderRepairs();
+            setRepairLoading(false);
+            setRepairStale(false);
+            syncSystemState();
         }
-        if (announce) showToast("数据已刷新");
+        if (announce && repairLoaded) showToast("数据已刷新");
     } catch (error) {
+        if (sequence !== state.dashboardSequence) return;
         showToast(error.message || "无法加载运维数据", true);
-        renderLoadFailure();
+        state.dashboardHealthy = false;
+        if (!state.dashboard) renderLoadFailure();
+        setRepairStale(true);
+        syncSystemState();
     } finally {
-        elements.refreshButton.disabled = false;
-        elements.refreshButton.removeAttribute("aria-busy");
-        elements.metrics.setAttribute("aria-busy", "false");
+        if (sequence === state.dashboardSequence) {
+            elements.refreshButton.disabled = false;
+            elements.refreshButton.removeAttribute("aria-busy");
+            elements.metrics.setAttribute("aria-busy", "false");
+            if (!hasRepairFilters() || !state.dashboard) setRepairLoading(false);
+        }
     }
 }
 
 async function loadRepairPage() {
-    const sequence = ++state.refreshSequence;
+    const sequence = ++state.repairSequence;
     setRepairLoading(true);
+    setSystemState("loading");
     const params = new URLSearchParams({ page: String(state.page), size: String(state.size) });
     if (state.status) params.set("status", state.status);
     if (state.type) params.set("type", state.type);
@@ -198,17 +250,28 @@ async function loadRepairPage() {
 
     try {
         const page = await requestJson(`/api/repair/page?${params}`);
-        if (sequence !== state.refreshSequence) return;
+        if (sequence !== state.repairSequence) return false;
         state.repairs = page.records;
         state.total = page.total;
         state.page = page.page;
+        state.loadedRepairPage = page.page;
         state.size = page.size;
+        state.repairHealthy = true;
         renderRepairs();
+        setRepairStale(false);
+        syncSystemState();
+        return true;
     } catch (error) {
+        if (sequence !== state.repairSequence) return false;
         showToast(error.message || "维修工单加载失败", true);
-        state.repairs = [];
-        state.total = 0;
+        state.page = state.loadedRepairPage;
+        state.repairHealthy = false;
         renderRepairs();
+        setRepairStale(true);
+        syncSystemState();
+        return false;
+    } finally {
+        if (sequence === state.repairSequence) setRepairLoading(false);
     }
 }
 
@@ -353,7 +416,7 @@ function openNewCleaningDialog() {
 }
 
 function openRepairActionDialog(order, action) {
-    const reference = `#R${padId(order.id)} · ${escapeHtml(order.title)}`;
+    const reference = `#R${padId(order.id)} · ${order.title}`;
     if (action === "assign") {
         openDialog({
             title: "派单",
@@ -388,7 +451,7 @@ function openCleaningActionDialog(plan, action) {
     const [title, submitLabel] = labels[action];
     openDialog({
         title,
-        subtitle: `${escapeHtml(plan.area)} · ${escapeHtml(plan.cleanerName)}`,
+        subtitle: `${plan.area} · ${plan.cleanerName}`,
         submitLabel,
         fields: `<p>将“${escapeHtml(plan.area)}”更新为“${submitLabel.replace("确认", "")}”状态？</p>`,
         onSubmit: () => requestJson(`/api/cleaning/plans/${plan.id}/${action}`, { method: "PUT" }),
@@ -397,7 +460,7 @@ function openCleaningActionDialog(plan, action) {
 
 function openDialog({ title, subtitle, submitLabel, fields, onSubmit }) {
     byId("dialog-title").textContent = title;
-    byId("dialog-subtitle").innerHTML = subtitle;
+    byId("dialog-subtitle").textContent = subtitle;
     elements.dialogFields.innerHTML = fields;
     elements.dialogSubmit.textContent = submitLabel;
     elements.dialogSubmit.dataset.defaultLabel = submitLabel;
@@ -412,18 +475,27 @@ function closeDialog() {
 }
 
 function setDialogLoading(loading) {
-    elements.dialogSubmit.disabled = loading;
-    byId("dialog-cancel").disabled = loading;
-    byId("dialog-close").disabled = loading;
+    elements.dialogForm.querySelectorAll("input, select, textarea, button").forEach((control) => {
+        control.disabled = loading;
+    });
     elements.dialogSubmit.textContent = loading ? "处理中…" : elements.dialogSubmit.dataset.defaultLabel;
     elements.dialogSubmit.setAttribute("aria-busy", String(loading));
+    elements.dialogForm.setAttribute("aria-busy", String(loading));
 }
 
 function setRepairLoading(loading) {
-    if (!loading) return;
+    elements.repairPanel.setAttribute("aria-busy", String(loading));
+    if (!loading || state.repairs.length > 0) return;
     elements.repairEmpty.hidden = true;
     elements.repairMobileList.innerHTML = "";
     elements.repairTableBody.innerHTML = Array.from({ length: 5 }, () => '<tr class="loading-row"><td colspan="7"><span></span></td></tr>').join("");
+}
+
+function setRepairStale(stale) {
+    elements.repairSyncNote.textContent = state.repairs.length > 0
+        ? "数据同步失败，正在显示上次成功结果。"
+        : "数据同步失败，请稍后重试。";
+    elements.repairSyncNote.hidden = !stale;
 }
 
 function renderLoadFailure() {
@@ -454,21 +526,26 @@ function setActiveTab(tab) {
         const active = button.dataset.tab === tab;
         button.classList.toggle("is-active", active);
         button.setAttribute("aria-selected", String(active));
+        button.tabIndex = active ? 0 : -1;
     });
     byId("repairs").classList.toggle("is-mobile-hidden", tab !== "repairs");
     byId("cleaning").classList.toggle("is-mobile-hidden", tab !== "cleaning");
 }
 
-function setSidebarOpen(open) {
+function setSidebarOpen(open, restoreFocus = false) {
     elements.sidebar.classList.toggle("is-open", open);
     elements.sidebarScrim.hidden = !open;
     elements.menuButton.setAttribute("aria-expanded", String(open));
+    elements.menuButton.setAttribute("aria-label", open ? "关闭导航" : "打开导航");
+    if (!open && restoreFocus) elements.menuButton.focus();
 }
 
 function showToast(message, isError = false) {
     window.clearTimeout(toastTimer);
     byId("toast-message").textContent = message;
     elements.toast.classList.toggle("is-error", isError);
+    elements.toast.setAttribute("role", isError ? "alert" : "status");
+    elements.toast.setAttribute("aria-live", isError ? "assertive" : "polite");
     elements.toast.querySelector(".toast-icon").textContent = isError ? "!" : "✓";
     elements.toast.hidden = false;
     toastTimer = window.setTimeout(hideToast, 4200);
@@ -476,6 +553,29 @@ function showToast(message, isError = false) {
 
 function hideToast() {
     elements.toast.hidden = true;
+}
+
+function setSystemState(status) {
+    const labels = {
+        loading: "系统状态：正在同步",
+        normal: "系统状态：正常",
+        partial: "系统状态：部分数据异常",
+        error: "系统状态：连接异常",
+    };
+    elements.systemState.dataset.state = status;
+    elements.systemStateLabel.textContent = labels[status] || labels.error;
+}
+
+function syncSystemState() {
+    if (state.dashboardHealthy === false && state.repairHealthy !== true) {
+        setSystemState("error");
+    } else if (state.dashboardHealthy === false || state.repairHealthy === false) {
+        setSystemState("partial");
+    } else if (state.dashboardHealthy === true) {
+        setSystemState("normal");
+    } else {
+        setSystemState("loading");
+    }
 }
 
 function updateTodayLabel(date) {

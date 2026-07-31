@@ -244,7 +244,11 @@ class RepairCleaningApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
                 .andExpect(content().string(containsString("<title>ApartmentHub")))
-                .andExpect(content().string(containsString("id=\"new-repair-button\"")));
+                .andExpect(content().string(containsString("id=\"new-repair-button\"")))
+                .andExpect(content().string(containsString("id=\"system-state\"")))
+                .andExpect(content().string(containsString("id=\"repair-sync-note\"")))
+                .andExpect(content().string(containsString("aria-controls=\"repairs\"")))
+                .andExpect(content().string(containsString("aria-busy=\"false\"")));
     }
 
     private long readId(String json) throws Exception {

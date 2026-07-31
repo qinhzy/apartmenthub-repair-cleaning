@@ -140,6 +140,9 @@ svg {
 }
 
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #35d478; box-shadow: 0 0 0 4px rgba(53,212,120,.12); }
+.system-state[data-state="loading"] .status-dot { background: #f0ad38; box-shadow: 0 0 0 4px rgba(240,173,56,.14); }
+.system-state[data-state="partial"] .status-dot,
+.system-state[data-state="error"] .status-dot { background: #ff7665; box-shadow: 0 0 0 4px rgba(255,118,101,.14); }
 
 .main-content { min-height: 100vh; margin-left: var(--sidebar-width); }
 
@@ -216,6 +219,9 @@ svg {
 }
 
 .work-panel { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+.repair-panel .table-wrap, .repair-panel .mobile-repair-list { transition: opacity .16s ease; }
+.repair-panel[aria-busy="true"] .table-wrap,
+.repair-panel[aria-busy="true"] .mobile-repair-list { opacity: .62; }
 .panel-heading { display: flex; min-height: 74px; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 20px; border-bottom: 1px solid var(--line); }
 .panel-heading h2 { margin: 0; font-size: 19px; letter-spacing: -.02em; }
 .panel-heading p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
@@ -234,6 +240,7 @@ svg {
 .search-field { position: relative; flex: 1; max-width: 260px; }
 .search-field svg { position: absolute; left: 12px; top: 10px; width: 19px; height: 19px; color: var(--muted); pointer-events: none; }
 .search-field input { padding: 0 12px 0 40px; }
+.sync-note { padding: 10px 18px; border-bottom: 1px solid #ffd9d2; color: #a63426; background: var(--red-soft); font-size: 12px; }
 
 .table-wrap { overflow: auto; }
 table { width: 100%; border-collapse: collapse; white-space: nowrap; }
