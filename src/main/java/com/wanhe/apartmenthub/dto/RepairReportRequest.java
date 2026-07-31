@@ -4,11 +4,15 @@ import com.wanhe.apartmenthub.domain.Priority;
 import com.wanhe.apartmenthub.domain.RepairType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 public class RepairReportRequest {
     @NotBlank
+    @Size(max = 100)
     private String title;
 
+    @Size(max = 500)
     private String description;
 
     @NotNull
@@ -18,6 +22,7 @@ public class RepairReportRequest {
     private Priority priority;
 
     @NotNull
+    @Positive
     private Long reporterId;
 
     public String getTitle() {
@@ -60,4 +65,3 @@ public class RepairReportRequest {
         this.reporterId = reporterId;
     }
 }
-

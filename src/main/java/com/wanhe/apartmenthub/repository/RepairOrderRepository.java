@@ -33,9 +33,11 @@ public class RepairOrderRepository {
         order.setPriority(Priority.valueOf(rs.getString("priority")));
         order.setStatus(RepairStatus.valueOf(rs.getString("status")));
         order.setReporterId(rs.getLong("reporter_id"));
+        order.setReporterName(rs.getString("reporter_name"));
 
         long assigneeId = rs.getLong("assignee_id");
         order.setAssigneeId(rs.wasNull() ? null : assigneeId);
+        order.setAssigneeName(rs.getString("assignee_name"));
 
         order.setRepairFee(rs.getBigDecimal("repair_fee"));
         order.setMaterialFee(rs.getBigDecimal("material_fee"));
@@ -76,30 +78,61 @@ public class RepairOrderRepository {
         return keyHolder.getKey().longValue();
     }
 
-    public List<RepairOrder> findPage(int offset, int size, RepairStatus status, RepairType type) {
+    public List<RepairOrder> findPage(
+            long offset,
+            int size,
+            RepairStatus status,
+            RepairType type,
+            String queryText
+    ) {
         QueryParts query = buildFilterSql(
-                "SELECT * FROM rpt_repair_order WHERE 1 = 1",
+                selectWithUserNames() + " WHERE 1 = 1",
                 status,
-                type
+                type,
+                queryText
         );
-        query.sql.append(" ORDER BY id DESC LIMIT ? OFFSET ?");
+        query.sql.append(" ORDER BY repair_order.id DESC LIMIT ? OFFSET ?");
         query.params.add(size);
         query.params.add(offset);
         return jdbcTemplate.query(query.sql.toString(), rowMapper, query.params.toArray());
     }
 
-    public long count(RepairStatus status, RepairType type) {
+    public long count(RepairStatus status, RepairType type, String queryText) {
         QueryParts query = buildFilterSql(
-                "SELECT COUNT(*) FROM rpt_repair_order WHERE 1 = 1",
+                "SELECT COUNT(*) FROM rpt_repair_order repair_order WHERE 1 = 1",
                 status,
-                type
+                type,
+                queryText
         );
         return jdbcTemplate.queryForObject(query.sql.toString(), Long.class, query.params.toArray());
     }
 
+    public List<StatusCount> countByStatus() {
+        return jdbcTemplate.query(
+                "SELECT status, COUNT(*) AS total FROM rpt_repair_order GROUP BY status",
+                (rs, rowNum) -> new StatusCount(
+                        RepairStatus.valueOf(rs.getString("status")),
+                        rs.getLong("total")
+                )
+        );
+    }
+
+    public long countOpenUrgent() {
+        Long count = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*) FROM rpt_repair_order
+                WHERE priority = ? AND status <> ?
+                """,
+                Long.class,
+                Priority.URGENT.name(),
+                RepairStatus.COMPLETED.name()
+        );
+        return count == null ? 0 : count;
+    }
+
     public Optional<RepairOrder> findById(Long id) {
         List<RepairOrder> result = jdbcTemplate.query(
-                "SELECT * FROM rpt_repair_order WHERE id = ?",
+                selectWithUserNames() + " WHERE repair_order.id = ?",
                 rowMapper,
                 id
         );
@@ -115,60 +148,97 @@ public class RepairOrderRepository {
         return count != null && count > 0;
     }
 
-    public void assign(Long id, Long assigneeId, LocalDateTime assignedAt) {
-        jdbcTemplate.update(
+    public int assign(
+            Long id,
+            Long assigneeId,
+            LocalDateTime assignedAt,
+            RepairStatus expectedStatus
+    ) {
+        return jdbcTemplate.update(
                 """
                 UPDATE rpt_repair_order
                 SET assignee_id = ?, status = ?, assigned_at = ?
-                WHERE id = ?
+                WHERE id = ? AND status = ?
                 """,
                 assigneeId,
                 RepairStatus.PROCESSING.name(),
                 Timestamp.valueOf(assignedAt),
-                id
+                id,
+                expectedStatus.name()
         );
     }
 
-    public void complete(Long id, BigDecimal repairFee, BigDecimal materialFee, BigDecimal totalFee, LocalDateTime completedAt) {
-        jdbcTemplate.update(
+    public int complete(
+            Long id,
+            BigDecimal repairFee,
+            BigDecimal materialFee,
+            BigDecimal totalFee,
+            LocalDateTime completedAt,
+            RepairStatus expectedStatus
+    ) {
+        return jdbcTemplate.update(
                 """
                 UPDATE rpt_repair_order
                 SET repair_fee = ?, material_fee = ?, total_fee = ?, status = ?, completed_at = ?
-                WHERE id = ?
+                WHERE id = ? AND status = ?
                 """,
                 repairFee,
                 materialFee,
                 totalFee,
                 RepairStatus.WAITING_CHECK.name(),
                 Timestamp.valueOf(completedAt),
-                id
+                id,
+                expectedStatus.name()
         );
     }
 
-    public void verify(Long id, LocalDateTime verifiedAt) {
-        jdbcTemplate.update(
+    public int verify(Long id, LocalDateTime verifiedAt, RepairStatus expectedStatus) {
+        return jdbcTemplate.update(
                 """
                 UPDATE rpt_repair_order
                 SET status = ?, verified_at = ?
-                WHERE id = ?
+                WHERE id = ? AND status = ?
                 """,
                 RepairStatus.COMPLETED.name(),
                 Timestamp.valueOf(verifiedAt),
-                id
+                id,
+                expectedStatus.name()
         );
     }
 
-    private QueryParts buildFilterSql(String baseSql, RepairStatus status, RepairType type) {
+    private QueryParts buildFilterSql(
+            String baseSql,
+            RepairStatus status,
+            RepairType type,
+            String queryText
+    ) {
         QueryParts query = new QueryParts(baseSql);
         if (status != null) {
-            query.sql.append(" AND status = ?");
+            query.sql.append(" AND repair_order.status = ?");
             query.params.add(status.name());
         }
         if (type != null) {
-            query.sql.append(" AND repair_type = ?");
+            query.sql.append(" AND repair_order.repair_type = ?");
             query.params.add(type.name());
         }
+        if (queryText != null && !queryText.isBlank()) {
+            query.sql.append(" AND (LOWER(repair_order.title) LIKE ? OR LOWER(repair_order.description) LIKE ?)");
+            String pattern = "%" + queryText.toLowerCase() + "%";
+            query.params.add(pattern);
+            query.params.add(pattern);
+        }
         return query;
+    }
+
+    private String selectWithUserNames() {
+        return """
+                SELECT repair_order.*,
+                       reporter.real_name AS reporter_name,
+                       assignee.real_name AS assignee_name
+                FROM rpt_repair_order repair_order
+                JOIN sys_user reporter ON reporter.id = repair_order.reporter_id
+                LEFT JOIN sys_user assignee ON assignee.id = repair_order.assignee_id
+                """;
     }
 
     private static LocalDateTime toLocalDateTime(Timestamp timestamp) {
@@ -183,5 +253,7 @@ public class RepairOrderRepository {
             this.sql = new StringBuilder(sql);
         }
     }
-}
 
+    public record StatusCount(RepairStatus status, long total) {
+    }
+}

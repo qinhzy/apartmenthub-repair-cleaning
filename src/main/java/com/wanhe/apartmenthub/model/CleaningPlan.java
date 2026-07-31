@@ -4,12 +4,14 @@ import com.wanhe.apartmenthub.domain.CleaningStatus;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 public class CleaningPlan {
     private Long id;
     private String area;
     private String cleanerName;
     private LocalDate planDate;
+    private LocalTime planTime;
     private CleaningStatus status;
     private String remark;
     private LocalDateTime createdAt;
@@ -47,6 +49,14 @@ public class CleaningPlan {
         this.planDate = planDate;
     }
 
+    public LocalTime getPlanTime() {
+        return planTime;
+    }
+
+    public void setPlanTime(LocalTime planTime) {
+        this.planTime = planTime;
+    }
+
     public CleaningStatus getStatus() {
         return status;
     }
@@ -79,4 +89,3 @@ public class CleaningPlan {
         this.updatedAt = updatedAt;
     }
 }
-

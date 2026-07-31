@@ -11,7 +11,9 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +27,8 @@ public class CleaningPlanRepository {
         plan.setArea(rs.getString("area"));
         plan.setCleanerName(rs.getString("cleaner_name"));
         plan.setPlanDate(rs.getDate("plan_date").toLocalDate());
+        Time planTime = rs.getTime("plan_time");
+        plan.setPlanTime(planTime == null ? null : planTime.toLocalTime());
         plan.setStatus(CleaningStatus.valueOf(rs.getString("status")));
         plan.setRemark(rs.getString("remark"));
         plan.setCreatedAt(toLocalDateTime(rs.getTimestamp("created_at")));
@@ -39,8 +43,8 @@ public class CleaningPlanRepository {
     public long insert(CreateCleaningPlanRequest request) {
         String sql = """
                 INSERT INTO rpt_cleaning_plan
-                (area, cleaner_name, plan_date, status, remark, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (area, cleaner_name, plan_date, plan_time, status, remark, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """;
         KeyHolder keyHolder = new GeneratedKeyHolder();
         LocalDateTime now = LocalDateTime.now();
@@ -50,10 +54,11 @@ public class CleaningPlanRepository {
             ps.setString(1, request.getArea());
             ps.setString(2, request.getCleanerName());
             ps.setObject(3, request.getPlanDate());
-            ps.setString(4, CleaningStatus.PENDING.name());
-            ps.setString(5, request.getRemark());
-            ps.setTimestamp(6, Timestamp.valueOf(now));
+            ps.setObject(4, request.getPlanTime());
+            ps.setString(5, CleaningStatus.PENDING.name());
+            ps.setString(6, request.getRemark());
             ps.setTimestamp(7, Timestamp.valueOf(now));
+            ps.setTimestamp(8, Timestamp.valueOf(now));
             return ps;
         }, keyHolder);
 
@@ -62,8 +67,20 @@ public class CleaningPlanRepository {
 
     public List<CleaningPlan> findAll() {
         return jdbcTemplate.query(
-                "SELECT * FROM rpt_cleaning_plan ORDER BY plan_date DESC, id DESC",
+                "SELECT * FROM rpt_cleaning_plan ORDER BY plan_date DESC, plan_time, id DESC",
                 rowMapper
+        );
+    }
+
+    public List<CleaningPlan> findByPlanDate(LocalDate planDate) {
+        return jdbcTemplate.query(
+                """
+                SELECT * FROM rpt_cleaning_plan
+                WHERE plan_date = ?
+                ORDER BY (plan_time IS NULL), plan_time, id
+                """,
+                rowMapper,
+                planDate
         );
     }
 
@@ -76,12 +93,22 @@ public class CleaningPlanRepository {
         return result.stream().findFirst();
     }
 
-    public void updateStatus(Long id, CleaningStatus status, LocalDateTime updatedAt) {
-        jdbcTemplate.update(
-                "UPDATE rpt_cleaning_plan SET status = ?, updated_at = ? WHERE id = ?",
-                status.name(),
+    public int updateStatus(
+            Long id,
+            CleaningStatus expectedStatus,
+            CleaningStatus newStatus,
+            LocalDateTime updatedAt
+    ) {
+        return jdbcTemplate.update(
+                """
+                UPDATE rpt_cleaning_plan
+                SET status = ?, updated_at = ?
+                WHERE id = ? AND status = ?
+                """,
+                newStatus.name(),
                 Timestamp.valueOf(updatedAt),
-                id
+                id,
+                expectedStatus.name()
         );
     }
 
@@ -89,4 +116,3 @@ public class CleaningPlanRepository {
         return timestamp == null ? null : timestamp.toLocalDateTime();
     }
 }
-

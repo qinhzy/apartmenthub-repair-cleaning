@@ -11,6 +11,7 @@ import com.wanhe.apartmenthub.model.RepairOrder;
 import com.wanhe.apartmenthub.repository.RepairOrderRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -18,22 +19,35 @@ import java.time.LocalDateTime;
 
 @Service
 public class RepairService {
+    private static final BigDecimal MAX_TOTAL_FEE = new BigDecimal("99999999.99");
+
     private final RepairOrderRepository repairOrderRepository;
 
     public RepairService(RepairOrderRepository repairOrderRepository) {
         this.repairOrderRepository = repairOrderRepository;
     }
 
-    public PageResult<RepairOrder> page(int page, int size, RepairStatus status, RepairType type) {
+    public PageResult<RepairOrder> page(
+            int page,
+            int size,
+            RepairStatus status,
+            RepairType type,
+            String query
+    ) {
         int safePage = Math.max(page, 1);
         int safeSize = Math.min(Math.max(size, 1), 50);
-        int offset = (safePage - 1) * safeSize;
+        long offset = (long) (safePage - 1) * safeSize;
+        String normalizedQuery = query == null ? null : query.trim();
         return new PageResult<>(
-                repairOrderRepository.findPage(offset, safeSize, status, type),
+                repairOrderRepository.findPage(offset, safeSize, status, type, normalizedQuery),
                 safePage,
                 safeSize,
-                repairOrderRepository.count(status, type)
+                repairOrderRepository.count(status, type, normalizedQuery)
         );
+    }
+
+    public PageResult<RepairOrder> page(int page, int size, RepairStatus status, RepairType type) {
+        return page(page, size, status, type, null);
     }
 
     public RepairOrder report(RepairReportRequest request) {
@@ -44,6 +58,7 @@ public class RepairService {
         return getRequired(id);
     }
 
+    @Transactional
     public RepairOrder assign(RepairAssignRequest request) {
         RepairOrder order = getRequired(request.getOrderId());
         if (order.getStatus() != RepairStatus.PENDING) {
@@ -53,10 +68,17 @@ public class RepairService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "assigneeId does not exist");
         }
 
-        repairOrderRepository.assign(order.getId(), request.getAssigneeId(), LocalDateTime.now());
+        int updated = repairOrderRepository.assign(
+                order.getId(),
+                request.getAssigneeId(),
+                LocalDateTime.now(),
+                RepairStatus.PENDING
+        );
+        requireSuccessfulTransition(updated);
         return getRequired(order.getId());
     }
 
+    @Transactional
     public RepairOrder complete(RepairCompleteRequest request) {
         RepairOrder order = getRequired(request.getOrderId());
         if (order.getStatus() != RepairStatus.PROCESSING) {
@@ -64,24 +86,44 @@ public class RepairService {
         }
 
         BigDecimal totalFee = request.getRepairFee().add(request.getMaterialFee());
-        repairOrderRepository.complete(
+        if (totalFee.compareTo(MAX_TOTAL_FEE) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "totalFee exceeds database limit");
+        }
+        int updated = repairOrderRepository.complete(
                 order.getId(),
                 request.getRepairFee(),
                 request.getMaterialFee(),
                 totalFee,
-                LocalDateTime.now()
+                LocalDateTime.now(),
+                RepairStatus.PROCESSING
         );
+        requireSuccessfulTransition(updated);
         return getRequired(order.getId());
     }
 
+    @Transactional
     public RepairOrder verify(RepairVerifyRequest request) {
         RepairOrder order = getRequired(request.getOrderId());
         if (order.getStatus() != RepairStatus.WAITING_CHECK) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "only WAITING_CHECK orders can be verified");
         }
 
-        repairOrderRepository.verify(order.getId(), LocalDateTime.now());
+        int updated = repairOrderRepository.verify(
+                order.getId(),
+                LocalDateTime.now(),
+                RepairStatus.WAITING_CHECK
+        );
+        requireSuccessfulTransition(updated);
         return getRequired(order.getId());
+    }
+
+    private void requireSuccessfulTransition(int updatedRows) {
+        if (updatedRows != 1) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "repair order state changed; retry the operation"
+            );
+        }
     }
 
     private RepairOrder getRequired(Long id) {
@@ -89,4 +131,3 @@ public class RepairService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "repair order not found"));
     }
 }
-

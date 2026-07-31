@@ -10,6 +10,11 @@ import com.wanhe.apartmenthub.model.PageResult;
 import com.wanhe.apartmenthub.model.RepairOrder;
 import com.wanhe.apartmenthub.service.RepairService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
+import org.springframework.http.HttpStatus;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -17,9 +22,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ResponseStatus;
 
 @RestController
 @RequestMapping("/api/repair")
+@Validated
 public class RepairController {
     private final RepairService repairService;
 
@@ -29,15 +36,17 @@ public class RepairController {
 
     @GetMapping("/page")
     public PageResult<RepairOrder> page(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "1") @Min(1) int page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(50) int size,
             @RequestParam(required = false) RepairStatus status,
-            @RequestParam(required = false) RepairType type
+            @RequestParam(required = false) RepairType type,
+            @RequestParam(required = false) @Size(max = 100) String query
     ) {
-        return repairService.page(page, size, status, type);
+        return repairService.page(page, size, status, type, query);
     }
 
     @PostMapping("/report")
+    @ResponseStatus(HttpStatus.CREATED)
     public RepairOrder report(@Valid @RequestBody RepairReportRequest request) {
         return repairService.report(request);
     }
@@ -57,4 +66,3 @@ public class RepairController {
         return repairService.verify(request);
     }
 }
-

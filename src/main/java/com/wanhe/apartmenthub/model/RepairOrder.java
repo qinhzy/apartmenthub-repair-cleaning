@@ -15,7 +15,9 @@ public class RepairOrder {
     private Priority priority;
     private RepairStatus status;
     private Long reporterId;
+    private String reporterName;
     private Long assigneeId;
+    private String assigneeName;
     private BigDecimal repairFee;
     private BigDecimal materialFee;
     private BigDecimal totalFee;
@@ -80,12 +82,28 @@ public class RepairOrder {
         this.reporterId = reporterId;
     }
 
+    public String getReporterName() {
+        return reporterName;
+    }
+
+    public void setReporterName(String reporterName) {
+        this.reporterName = reporterName;
+    }
+
     public Long getAssigneeId() {
         return assigneeId;
     }
 
     public void setAssigneeId(Long assigneeId) {
         this.assigneeId = assigneeId;
+    }
+
+    public String getAssigneeName() {
+        return assigneeName;
+    }
+
+    public void setAssigneeName(String assigneeName) {
+        this.assigneeName = assigneeName;
     }
 
     public BigDecimal getRepairFee() {
@@ -144,4 +162,3 @@ public class RepairOrder {
         this.verifiedAt = verifiedAt;
     }
 }
-
