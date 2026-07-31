@@ -56,7 +56,10 @@ function init() {
         systemState: byId("system-state"),
         systemStateLabel: byId("system-state-label"),
         repairPanel: byId("repairs"),
+        filterSummary: byId("filter-summary"),
+        filterSummaryText: byId("filter-summary-text"),
         clearFiltersButton: byId("clear-filters"),
+        emptyClearFiltersButton: byId("empty-clear-filters"),
         repairSyncNote: byId("repair-sync-note"),
         repairTableBody: byId("repair-table-body"),
         repairMobileList: byId("repair-mobile-list"),
@@ -141,6 +144,7 @@ function bindFilters() {
         }, 260);
     });
     elements.clearFiltersButton.addEventListener("click", clearRepairFilters);
+    elements.emptyClearFiltersButton.addEventListener("click", clearRepairFilters);
     byId("repair-filters").addEventListener("submit", (event) => event.preventDefault());
     byId("previous-page").addEventListener("click", () => {
         if (state.page <= 1) return;
@@ -157,6 +161,7 @@ function bindFilters() {
 function bindActions() {
     elements.refreshButton.addEventListener("click", () => refreshAll({ announce: true }));
     byId("new-repair-button").addEventListener("click", openNewRepairDialog);
+    byId("empty-new-repair").addEventListener("click", openNewRepairDialog);
     byId("new-cleaning-button").addEventListener("click", openNewCleaningDialog);
     byId("dialog-close").addEventListener("click", closeDialog);
     byId("dialog-cancel").addEventListener("click", closeDialog);
@@ -302,11 +307,19 @@ function hasRepairFilters() {
 }
 
 function updateClearFiltersButton() {
-    elements.clearFiltersButton.hidden = !(
-        byId("status-filter").value
-        || byId("type-filter").value
-        || byId("query-filter").value.trim()
-    );
+    const status = byId("status-filter").value;
+    const type = byId("type-filter").value;
+    const query = byId("query-filter").value.trim();
+    const parts = [
+        status ? `状态：${STATUS_LABELS[status] || status}` : "",
+        type ? `类型：${TYPE_LABELS[type] || type}` : "",
+        query ? `关键词：“${query}”` : "",
+    ].filter(Boolean);
+    const active = parts.length > 0;
+    elements.filterSummary.hidden = !active;
+    elements.filterSummaryText.textContent = parts.join(" · ");
+    elements.clearFiltersButton.hidden = !active;
+    elements.emptyClearFiltersButton.hidden = !active;
 }
 
 function clearRepairFilters() {
@@ -341,12 +354,45 @@ function renderDashboard(summary) {
     byId("repair-total").textContent = summary.totalRepairs;
     byId("urgent-summary").textContent = summary.urgentOpenRepairs > 0 ? `${summary.urgentOpenRepairs} 条紧急` : "";
     byId("cleaning-date").textContent = formatDate(summary.date);
+    byId("last-updated").textContent = `数据更新于 ${formatClock(summary.generatedAt)}`;
+    renderOperationBrief(summary);
     renderCleaning(summary.todayCleaningPlans);
+}
+
+function renderOperationBrief(summary) {
+    const openCount = summary.pendingRepairs + summary.processingRepairs + summary.waitingCheckRepairs;
+    const urgentCount = summary.urgentOpenRepairs;
+    const brief = byId("operation-brief");
+    byId("brief-urgent").textContent = urgentCount;
+    byId("brief-open").textContent = openCount;
+
+    if (urgentCount > 0) {
+        brief.dataset.tone = "urgent";
+        byId("brief-title").textContent = `${urgentCount} 条紧急工单需要优先推进`;
+        byId("brief-detail").textContent =
+            `先处理紧急报修；当前另有 ${summary.processingRepairs} 条处理中、${summary.waitingCheckRepairs} 条待验收。`;
+    } else if (openCount > 0) {
+        brief.dataset.tone = "active";
+        byId("brief-title").textContent = `今日有 ${openCount} 条维修事项待推进`;
+        byId("brief-detail").textContent =
+            `${summary.pendingRepairs} 条待派单，${summary.processingRepairs} 条处理中，${summary.waitingCheckRepairs} 条待验收。`;
+    } else {
+        brief.dataset.tone = "clear";
+        byId("brief-title").textContent = "当前没有未结维修工单";
+        byId("brief-detail").textContent =
+            `今日已安排 ${summary.todayCleaningPlans.length} 项保洁计划，可继续关注新增报修。`;
+    }
 }
 
 function renderRepairs() {
     const hasRecords = state.repairs.length > 0;
     elements.repairEmpty.hidden = hasRecords;
+    const filtered = hasRepairFilters();
+    byId("repair-empty-title").textContent = filtered ? "没有匹配的维修工单" : "当前没有维修工单";
+    byId("repair-empty-copy").textContent = filtered
+        ? "可以清除筛选查看全部工单，或直接新建工单。"
+        : "新的报修提交后会出现在这里。";
+    elements.emptyClearFiltersButton.hidden = !filtered;
     elements.repairTableBody.innerHTML = hasRecords ? state.repairs.map(repairTableRow).join("") : "";
     elements.repairMobileList.innerHTML = hasRecords ? state.repairs.map(repairMobileRow).join("") : "";
     byId("repair-total").textContent = state.total;
@@ -557,6 +603,12 @@ function renderLoadFailure() {
     renderRepairs();
     elements.cleaningList.innerHTML = "";
     elements.cleaningEmpty.hidden = false;
+    byId("last-updated").textContent = "数据同步失败";
+    byId("operation-brief").dataset.tone = "error";
+    byId("brief-title").textContent = "暂时无法生成今日重点";
+    byId("brief-detail").textContent = "请稍后刷新，系统会保留最近一次成功加载的数据。";
+    byId("brief-urgent").textContent = "—";
+    byId("brief-open").textContent = "—";
 }
 
 async function requestJson(path, options = {}) {
@@ -646,6 +698,16 @@ function formatMonthDay(value) {
 function formatDateTime(value) {
     if (!value) return "—";
     return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value));
+}
+
+function formatClock(value) {
+    if (!value) return "—";
+    return new Intl.DateTimeFormat("zh-CN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+    }).format(new Date(value));
 }
 
 function formatPlanTime(value) {

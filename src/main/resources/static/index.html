@@ -45,7 +45,10 @@
             </button>
             <div>
                 <h1>今日运维</h1>
-                <p id="today-label">正在读取日期…</p>
+                <div class="topbar-meta">
+                    <p id="today-label">正在读取日期…</p>
+                    <span id="last-updated">等待首次同步</span>
+                </div>
             </div>
             <div class="topbar-actions">
                 <button class="button button-quiet" id="refresh-button" type="button">
@@ -76,6 +79,21 @@
                 <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 3 2 1-5 9-3-2 6-8ZM8 12l5 3-3 6H3l5-9Zm6 5h6m-5 4h6"/></svg>
                 <div><span>今日保洁</span><strong id="metric-cleaning">—</strong></div>
             </article>
+        </section>
+
+        <section class="operation-brief" id="operation-brief" data-tone="loading" aria-labelledby="brief-title" aria-live="polite">
+            <span class="brief-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 3v3M4.2 6.2l2.1 2.1M2 14h3m13 0h4M17.7 8.3l2.1-2.1M8 18h8m-7 3h6M7 14a5 5 0 1 1 10 0c0 1.7-.8 2.5-1.8 3.5H8.8C7.8 16.5 7 15.7 7 14Z"/></svg>
+            </span>
+            <div class="brief-copy">
+                <span>今日重点</span>
+                <strong id="brief-title">正在整理今日运维重点</strong>
+                <p id="brief-detail">同步完成后，这里会给出需要优先推进的事项。</p>
+            </div>
+            <div class="brief-stats" aria-label="重点事项摘要">
+                <span><strong id="brief-urgent">—</strong>紧急未结</span>
+                <span><strong id="brief-open">—</strong>待推进</span>
+            </div>
         </section>
 
         <div class="mobile-tabs" role="tablist" aria-label="运维模块">
@@ -119,7 +137,14 @@
                         <span class="sr-only">搜索工单</span>
                         <input id="query-filter" name="query" type="search" maxlength="100" placeholder="搜索工单" autocomplete="off">
                     </label>
-                    <button class="button filter-reset" id="clear-filters" type="button" hidden>清除筛选</button>
+                    <div class="filter-summary" id="filter-summary" hidden>
+                        <span>
+                            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16l-6.5 7.2V19l-3 1v-7.8L4 5Z"/></svg>
+                            <strong>当前筛选</strong>
+                            <span id="filter-summary-text"></span>
+                        </span>
+                        <button class="button filter-reset" id="clear-filters" type="button" hidden>清除全部</button>
+                    </div>
                 </form>
                 <div class="sync-note" id="repair-sync-note" role="status" hidden>
                     数据同步失败，正在显示上次成功结果。
@@ -143,8 +168,12 @@
                 </div>
                 <div class="mobile-repair-list" id="repair-mobile-list"></div>
                 <div class="empty-state" id="repair-empty" hidden>
-                    <strong>没有匹配的维修工单</strong>
-                    <p>调整筛选条件，或新建一条维修工单。</p>
+                    <strong id="repair-empty-title">没有匹配的维修工单</strong>
+                    <p id="repair-empty-copy">调整筛选条件，或新建一条维修工单。</p>
+                    <div class="empty-actions">
+                        <button class="button button-secondary" id="empty-clear-filters" type="button" hidden>清除筛选</button>
+                        <button class="button button-primary" id="empty-new-repair" type="button">新建维修工单</button>
+                    </div>
                 </div>
 
                 <footer class="pagination" aria-label="维修工单分页">
