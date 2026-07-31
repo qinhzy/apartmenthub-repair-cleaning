@@ -18,6 +18,8 @@ const TYPE_LABELS = Object.freeze({
     OTHER: "其他",
 });
 const TAB_IDS = new Set(["repairs", "cleaning"]);
+const REPAIR_STATUS_VALUES = new Set(["PENDING", "PROCESSING", "WAITING_CHECK", "COMPLETED"]);
+const REPAIR_TYPE_VALUES = new Set(Object.keys(TYPE_LABELS));
 
 const state = {
     page: 1,
@@ -78,6 +80,8 @@ function init() {
     bindNavigation();
     bindFilters();
     bindActions();
+    syncRepairStateFromLocation();
+    writeRepairStateToLocation("replace");
     syncNavigationFromLocation();
     updateTodayLabel(new Date());
     setRepairLoading(true);
@@ -123,7 +127,10 @@ function bindNavigation() {
         tabs[nextIndex].focus();
     });
     window.addEventListener("hashchange", syncNavigationFromLocation);
-    window.addEventListener("popstate", syncNavigationFromLocation);
+    window.addEventListener("popstate", () => {
+        syncNavigationFromLocation();
+        if (syncRepairStateFromLocation()) loadRepairPage();
+    });
 }
 
 function bindFilters() {
@@ -131,12 +138,14 @@ function bindFilters() {
         state.status = event.target.value;
         state.page = 1;
         updateClearFiltersButton();
+        writeRepairStateToLocation("push");
         loadRepairPage();
     });
     byId("type-filter").addEventListener("change", (event) => {
         state.type = event.target.value;
         state.page = 1;
         updateClearFiltersButton();
+        writeRepairStateToLocation("push");
         loadRepairPage();
     });
     byId("query-filter").addEventListener("input", (event) => {
@@ -145,6 +154,7 @@ function bindFilters() {
         searchTimer = window.setTimeout(() => {
             state.query = event.target.value.trim();
             state.page = 1;
+            writeRepairStateToLocation("replace");
             loadRepairPage();
         }, 260);
     });
@@ -154,13 +164,65 @@ function bindFilters() {
     byId("previous-page").addEventListener("click", () => {
         if (state.page <= 1) return;
         state.page -= 1;
+        writeRepairStateToLocation("push");
         loadRepairPage();
     });
     byId("next-page").addEventListener("click", () => {
         if (state.page * state.size >= state.total) return;
         state.page += 1;
+        writeRepairStateToLocation("push");
         loadRepairPage();
     });
+}
+
+function syncRepairStateFromLocation() {
+    window.clearTimeout(searchTimer);
+    const params = new URLSearchParams(window.location.search);
+    const rawStatus = params.get("status") || "";
+    const rawType = params.get("type") || "";
+    const rawQuery = (params.get("q") || "").trim().slice(0, 100);
+    const rawPage = params.get("page") || "";
+    const parsedPage = /^\d+$/.test(rawPage) ? Number(rawPage) : 1;
+    const next = {
+        status: REPAIR_STATUS_VALUES.has(rawStatus) ? rawStatus : "",
+        type: REPAIR_TYPE_VALUES.has(rawType) ? rawType : "",
+        query: rawQuery,
+        page: Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1,
+    };
+    const changed = next.status !== state.status
+        || next.type !== state.type
+        || next.query !== state.query
+        || next.page !== state.page;
+    Object.assign(state, next);
+    byId("status-filter").value = state.status;
+    byId("type-filter").value = state.type;
+    byId("query-filter").value = state.query;
+    updateClearFiltersButton();
+    return changed;
+}
+
+function writeRepairStateToLocation(mode) {
+    const url = new URL(window.location.href);
+    [["status", state.status], ["type", state.type], ["q", state.query]].forEach(([key, value]) => {
+        if (value) {
+            url.searchParams.set(key, value);
+        } else {
+            url.searchParams.delete(key);
+        }
+    });
+    if (state.page > 1) {
+        url.searchParams.set("page", String(state.page));
+    } else {
+        url.searchParams.delete("page");
+    }
+    const next = `${url.pathname}${url.search}${url.hash}`;
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (next === current) return;
+    if (mode === "push") {
+        window.history.pushState(null, "", next);
+    } else {
+        window.history.replaceState(null, "", next);
+    }
 }
 
 function bindActions() {
@@ -286,6 +348,7 @@ async function loadRepairPage() {
         state.page = page.page;
         state.loadedRepairPage = page.page;
         state.size = page.size;
+        writeRepairStateToLocation("replace");
         state.repairHealthy = true;
         renderRepairs();
         setRepairStale(false);
@@ -296,6 +359,7 @@ async function loadRepairPage() {
         if (sequence !== state.repairSequence) return false;
         showToast(error.message || "维修工单加载失败", true);
         state.page = state.loadedRepairPage;
+        writeRepairStateToLocation("replace");
         state.repairHealthy = false;
         renderRepairs();
         setRepairStale(true);
@@ -339,6 +403,7 @@ function clearRepairFilters() {
     state.query = "";
     state.page = 1;
     updateClearFiltersButton();
+    writeRepairStateToLocation("push");
     loadRepairPage();
 }
 
@@ -516,7 +581,7 @@ function openNewCleaningDialog() {
     const today = state.dashboard?.date || new Date().toISOString().slice(0, 10);
     openDialog({
         title: "新增保洁计划",
-        subtitle: "计划会按执行时间加入今日保洁列表。",
+        subtitle: "计划按日期保存；今天的计划会按执行时间加入今日列表。",
         submitLabel: "创建计划",
         fields: `<label>保洁区域 <span>*</span><input name="area" required maxlength="100" placeholder="例如：一号公寓三楼走廊"></label>
             <div class="field-row"><label>保洁人员 <span>*</span><input name="cleanerName" required maxlength="64" placeholder="姓名"></label><label>计划日期 <span>*</span><input name="planDate" type="date" required value="${escapeHtml(today)}"></label></div>
