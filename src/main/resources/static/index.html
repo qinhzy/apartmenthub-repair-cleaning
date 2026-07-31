@@ -119,6 +119,7 @@
                         <span class="sr-only">搜索工单</span>
                         <input id="query-filter" name="query" type="search" maxlength="100" placeholder="搜索工单" autocomplete="off">
                     </label>
+                    <button class="button filter-reset" id="clear-filters" type="button" hidden>清除筛选</button>
                 </form>
                 <div class="sync-note" id="repair-sync-note" role="status" hidden>
                     数据同步失败，正在显示上次成功结果。
@@ -147,7 +148,7 @@
                 </div>
 
                 <footer class="pagination" aria-label="维修工单分页">
-                    <span id="page-summary">正在加载…</span>
+                    <span id="page-summary" role="status" aria-live="polite">正在加载…</span>
                     <div>
                         <button class="icon-button" id="previous-page" type="button" aria-label="上一页">‹</button>
                         <strong id="current-page">1</strong>

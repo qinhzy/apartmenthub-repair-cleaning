@@ -240,6 +240,9 @@ svg {
 .search-field { position: relative; flex: 1; max-width: 260px; }
 .search-field svg { position: absolute; left: 12px; top: 10px; width: 19px; height: 19px; color: var(--muted); pointer-events: none; }
 .search-field input { padding: 0 12px 0 40px; }
+.filter-reset { min-height: 40px; padding-inline: 12px; border-color: var(--line); color: var(--teal-dark); background: #fff; }
+.filter-reset:hover { background: var(--teal-soft); }
+.filter-reset[hidden] { display: none; }
 .sync-note { padding: 10px 18px; border-bottom: 1px solid #ffd9d2; color: #a63426; background: var(--red-soft); font-size: 12px; }
 
 .table-wrap { overflow: auto; }
@@ -397,6 +400,7 @@ td.action-column { width: 88px; }
     .filters { display: grid; grid-template-columns: 1fr 1fr; padding: 14px 16px; }
     .filters select { min-width: 0; }
     .search-field { grid-column: 1 / -1; max-width: none; }
+    .filter-reset { grid-column: 1 / -1; }
     .table-wrap { display: none; }
     .mobile-repair-list { display: block; }
     .mobile-repair-item { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 17px 16px 17px 20px; border-bottom: 1px solid var(--line); }

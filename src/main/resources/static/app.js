@@ -39,6 +39,8 @@ const state = {
 const elements = {};
 let searchTimer;
 let toastTimer;
+let dashboardAbortController;
+let repairAbortController;
 
 function byId(id) {
     return document.getElementById(id);
@@ -54,6 +56,7 @@ function init() {
         systemState: byId("system-state"),
         systemStateLabel: byId("system-state-label"),
         repairPanel: byId("repairs"),
+        clearFiltersButton: byId("clear-filters"),
         repairSyncNote: byId("repair-sync-note"),
         repairTableBody: byId("repair-table-body"),
         repairMobileList: byId("repair-mobile-list"),
@@ -119,21 +122,25 @@ function bindFilters() {
     byId("status-filter").addEventListener("change", (event) => {
         state.status = event.target.value;
         state.page = 1;
+        updateClearFiltersButton();
         loadRepairPage();
     });
     byId("type-filter").addEventListener("change", (event) => {
         state.type = event.target.value;
         state.page = 1;
+        updateClearFiltersButton();
         loadRepairPage();
     });
     byId("query-filter").addEventListener("input", (event) => {
         window.clearTimeout(searchTimer);
+        updateClearFiltersButton();
         searchTimer = window.setTimeout(() => {
             state.query = event.target.value.trim();
             state.page = 1;
             loadRepairPage();
         }, 260);
     });
+    elements.clearFiltersButton.addEventListener("click", clearRepairFilters);
     byId("repair-filters").addEventListener("submit", (event) => event.preventDefault());
     byId("previous-page").addEventListener("click", () => {
         if (state.page <= 1) return;
@@ -198,11 +205,14 @@ function bindActions() {
 
 async function refreshAll({ announce }) {
     const sequence = ++state.dashboardSequence;
+    dashboardAbortController?.abort();
+    const controller = new AbortController();
+    dashboardAbortController = controller;
     elements.refreshButton.disabled = true;
     elements.refreshButton.setAttribute("aria-busy", "true");
     setSystemState("loading");
     try {
-        const summary = await requestJson("/api/dashboard/summary");
+        const summary = await requestJson("/api/dashboard/summary", { signal: controller.signal });
         if (sequence !== state.dashboardSequence) return;
         state.dashboard = summary;
         state.dashboardHealthy = true;
@@ -211,6 +221,7 @@ async function refreshAll({ announce }) {
         if (hasRepairFilters() || state.page !== 1) {
             repairLoaded = await loadRepairPage();
         } else {
+            cancelRepairLoad();
             state.repairs = summary.recentRepairs;
             state.total = summary.totalRepairs;
             state.page = 1;
@@ -223,6 +234,7 @@ async function refreshAll({ announce }) {
         }
         if (announce && repairLoaded) showToast("数据已刷新");
     } catch (error) {
+        if (isAbortError(error)) return;
         if (sequence !== state.dashboardSequence) return;
         showToast(error.message || "无法加载运维数据", true);
         state.dashboardHealthy = false;
@@ -231,6 +243,7 @@ async function refreshAll({ announce }) {
         syncSystemState();
     } finally {
         if (sequence === state.dashboardSequence) {
+            if (dashboardAbortController === controller) dashboardAbortController = undefined;
             elements.refreshButton.disabled = false;
             elements.refreshButton.removeAttribute("aria-busy");
             elements.metrics.setAttribute("aria-busy", "false");
@@ -241,6 +254,9 @@ async function refreshAll({ announce }) {
 
 async function loadRepairPage() {
     const sequence = ++state.repairSequence;
+    repairAbortController?.abort();
+    const controller = new AbortController();
+    repairAbortController = controller;
     setRepairLoading(true);
     setSystemState("loading");
     const params = new URLSearchParams({ page: String(state.page), size: String(state.size) });
@@ -249,7 +265,9 @@ async function loadRepairPage() {
     if (state.query) params.set("query", state.query);
 
     try {
-        const page = await requestJson(`/api/repair/page?${params}`);
+        const page = await requestJson(`/api/repair/page?${params}`, {
+            signal: controller.signal,
+        });
         if (sequence !== state.repairSequence) return false;
         state.repairs = page.records;
         state.total = page.total;
@@ -262,6 +280,7 @@ async function loadRepairPage() {
         syncSystemState();
         return true;
     } catch (error) {
+        if (isAbortError(error)) return false;
         if (sequence !== state.repairSequence) return false;
         showToast(error.message || "维修工单加载失败", true);
         state.page = state.loadedRepairPage;
@@ -271,12 +290,46 @@ async function loadRepairPage() {
         syncSystemState();
         return false;
     } finally {
-        if (sequence === state.repairSequence) setRepairLoading(false);
+        if (sequence === state.repairSequence) {
+            if (repairAbortController === controller) repairAbortController = undefined;
+            setRepairLoading(false);
+        }
     }
 }
 
 function hasRepairFilters() {
     return Boolean(state.status || state.type || state.query);
+}
+
+function updateClearFiltersButton() {
+    elements.clearFiltersButton.hidden = !(
+        byId("status-filter").value
+        || byId("type-filter").value
+        || byId("query-filter").value.trim()
+    );
+}
+
+function clearRepairFilters() {
+    window.clearTimeout(searchTimer);
+    byId("status-filter").value = "";
+    byId("type-filter").value = "";
+    byId("query-filter").value = "";
+    state.status = "";
+    state.type = "";
+    state.query = "";
+    state.page = 1;
+    updateClearFiltersButton();
+    loadRepairPage();
+}
+
+function cancelRepairLoad() {
+    state.repairSequence += 1;
+    repairAbortController?.abort();
+    repairAbortController = undefined;
+}
+
+function isAbortError(error) {
+    return error?.name === "AbortError";
 }
 
 function renderDashboard(summary) {
