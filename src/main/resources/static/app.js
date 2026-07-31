@@ -39,6 +39,7 @@ const state = {
 const elements = {};
 let searchTimer;
 let toastTimer;
+let dialogReturnFocus;
 let dashboardAbortController;
 let repairAbortController;
 
@@ -215,6 +216,7 @@ async function refreshAll({ announce }) {
     dashboardAbortController = controller;
     elements.refreshButton.disabled = true;
     elements.refreshButton.setAttribute("aria-busy", "true");
+    byId("refresh-label").textContent = "正在刷新";
     setSystemState("loading");
     try {
         const summary = await requestJson("/api/dashboard/summary", { signal: controller.signal });
@@ -251,6 +253,7 @@ async function refreshAll({ announce }) {
             if (dashboardAbortController === controller) dashboardAbortController = undefined;
             elements.refreshButton.disabled = false;
             elements.refreshButton.removeAttribute("aria-busy");
+            byId("refresh-label").textContent = "刷新";
             elements.metrics.setAttribute("aria-busy", "false");
             if (!hasRepairFilters() || !state.dashboard) setRepairLoading(false);
         }
@@ -352,7 +355,9 @@ function renderDashboard(summary) {
     byId("metric-check").textContent = summary.waitingCheckRepairs;
     byId("metric-cleaning").textContent = summary.todayCleaningPlans.length;
     byId("repair-total").textContent = summary.totalRepairs;
-    byId("urgent-summary").textContent = summary.urgentOpenRepairs > 0 ? `${summary.urgentOpenRepairs} 条紧急` : "";
+    byId("urgent-summary").textContent = summary.urgentOpenRepairs > 0
+        ? `全局 ${summary.urgentOpenRepairs} 条紧急`
+        : "";
     byId("cleaning-date").textContent = formatDate(summary.date);
     byId("last-updated").textContent = `数据更新于 ${formatClock(summary.generatedAt)}`;
     renderOperationBrief(summary);
@@ -433,6 +438,18 @@ function repairMobileRow(order) {
 }
 
 function renderCleaning(plans) {
+    const pendingCount = plans.filter((plan) => plan.status === "PENDING").length;
+    const activeCount = plans.filter((plan) => plan.status === "IN_PROGRESS").length;
+    const finishedCount = plans.filter(
+        (plan) => plan.status === "COMPLETED" || plan.status === "SKIPPED"
+    ).length;
+    const progress = [
+        `${plans.length} 项`,
+        pendingCount > 0 ? `${pendingCount} 待开始` : "",
+        activeCount > 0 ? `${activeCount} 进行中` : "",
+        finishedCount > 0 ? `${finishedCount} 已结束` : "",
+    ].filter(Boolean);
+    byId("cleaning-summary").textContent = progress.join(" · ");
     elements.cleaningEmpty.hidden = plans.length > 0;
     elements.cleaningList.innerHTML = plans.map((plan) => {
         const primaryAction = plan.status === "PENDING" ? "start" : plan.status === "IN_PROGRESS" ? "complete" : "";
@@ -558,6 +575,9 @@ function openCleaningActionDialog(plan, action) {
 }
 
 function openDialog({ title, subtitle, submitLabel, fields, onSubmit }) {
+    dialogReturnFocus = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     byId("dialog-title").textContent = title;
     byId("dialog-subtitle").textContent = subtitle;
     elements.dialogFields.innerHTML = fields;
@@ -571,6 +591,11 @@ function openDialog({ title, subtitle, submitLabel, fields, onSubmit }) {
 function closeDialog() {
     if (elements.dialog.open) elements.dialog.close();
     state.dialogSubmit = null;
+    const focusTarget = dialogReturnFocus;
+    dialogReturnFocus = null;
+    if (focusTarget?.isConnected) {
+        window.setTimeout(() => focusTarget.focus(), 0);
+    }
 }
 
 function setDialogLoading(loading) {
@@ -603,6 +628,7 @@ function renderLoadFailure() {
     renderRepairs();
     elements.cleaningList.innerHTML = "";
     elements.cleaningEmpty.hidden = false;
+    byId("cleaning-summary").textContent = "同步失败";
     byId("last-updated").textContent = "数据同步失败";
     byId("operation-brief").dataset.tone = "error";
     byId("brief-title").textContent = "暂时无法生成今日重点";
@@ -635,6 +661,9 @@ function setActiveTab(tab) {
     });
     byId("repairs").classList.toggle("is-mobile-hidden", tab !== "repairs");
     byId("cleaning").classList.toggle("is-mobile-hidden", tab !== "cleaning");
+    document.querySelectorAll("[data-nav]").forEach((link) => {
+        link.classList.toggle("is-active", link.dataset.nav === tab);
+    });
 }
 
 function setSidebarOpen(open, restoreFocus = false) {

@@ -160,7 +160,7 @@ svg {
 .topbar-meta { display: flex; align-items: center; gap: 9px; margin-top: 6px; color: var(--muted); }
 .topbar-meta span { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
 .topbar-meta span::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: #a3afbd; }
-.topbar-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.topbar-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-wrap: wrap; }
 
 .button, .icon-button {
     display: inline-flex;
@@ -185,7 +185,12 @@ svg {
 .button-small { min-height: 36px; padding: 0 12px; border-color: var(--teal); color: var(--teal-dark); background: #fff; }
 .button-small:hover { background: var(--teal-soft); }
 .button-quiet { color: var(--ink); }
+.button-quiet[aria-busy="true"] svg { animation: refresh-spin .8s linear infinite; }
 .icon-button { width: 42px; padding: 0; border-color: var(--line); background: #fff; font-size: 22px; }
+
+@keyframes refresh-spin {
+    to { transform: rotate(360deg); }
+}
 
 .metrics {
     display: grid;
@@ -276,6 +281,7 @@ svg {
 .panel-heading h2 { margin: 0; font-size: 19px; letter-spacing: -.02em; }
 .panel-heading p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
 #urgent-summary:not(:empty)::before { content: " · "; }
+#cleaning-summary:not(:empty)::before { content: " · "; }
 
 .filters { display: flex; flex-wrap: wrap; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
 .filters select, .filters input, .dialog-fields input, .dialog-fields select, .dialog-fields textarea {
@@ -308,6 +314,7 @@ svg {
 .filter-summary > span { display: flex; min-width: 0; align-items: center; gap: 7px; }
 .filter-summary svg { flex: none; width: 16px; height: 16px; color: var(--teal); }
 .filter-summary strong { flex: none; color: var(--ink); }
+#filter-summary-text { min-width: 0; overflow-wrap: anywhere; }
 .filter-summary .filter-reset { flex: none; min-height: 32px; }
 .sync-note { padding: 10px 18px; border-bottom: 1px solid #ffd9d2; color: #a63426; background: var(--red-soft); font-size: 12px; }
 
