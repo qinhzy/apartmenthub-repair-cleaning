@@ -17,6 +17,7 @@ const TYPE_LABELS = Object.freeze({
     NETWORK: "网络维修",
     OTHER: "其他",
 });
+const TAB_IDS = new Set(["repairs", "cleaning"]);
 
 const state = {
     page: 1,
@@ -77,6 +78,7 @@ function init() {
     bindNavigation();
     bindFilters();
     bindActions();
+    syncNavigationFromLocation();
     updateTodayLabel(new Date());
     setRepairLoading(true);
     refreshAll({ announce: false });
@@ -85,6 +87,7 @@ function init() {
 function bindNavigation() {
     elements.menuButton.addEventListener("click", () => setSidebarOpen(!elements.sidebar.classList.contains("is-open")));
     elements.sidebarScrim.addEventListener("click", () => setSidebarOpen(false));
+    document.querySelector(".brand").addEventListener("click", () => setSidebarOpen(false));
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape" && elements.sidebar.classList.contains("is-open")) {
             setSidebarOpen(false, true);
@@ -93,10 +96,9 @@ function bindNavigation() {
 
     document.querySelectorAll("[data-nav]").forEach((link) => {
         link.addEventListener("click", () => {
-            document.querySelectorAll("[data-nav]").forEach((item) => item.classList.remove("is-active"));
-            link.classList.add("is-active");
             const destination = link.dataset.nav;
-            if (destination === "repairs" || destination === "cleaning") {
+            setNavigationDestination(destination);
+            if (TAB_IDS.has(destination)) {
                 setActiveTab(destination);
             }
             setSidebarOpen(false);
@@ -105,7 +107,7 @@ function bindNavigation() {
 
     const tabs = [...document.querySelectorAll("[data-tab]")];
     tabs.forEach((button) => {
-        button.addEventListener("click", () => setActiveTab(button.dataset.tab));
+        button.addEventListener("click", () => navigateToTab(button.dataset.tab));
     });
     document.querySelector(".mobile-tabs").addEventListener("keydown", (event) => {
         const currentIndex = tabs.indexOf(document.activeElement);
@@ -117,9 +119,11 @@ function bindNavigation() {
         if (event.key === "End") nextIndex = tabs.length - 1;
         if (nextIndex === undefined) return;
         event.preventDefault();
-        setActiveTab(tabs[nextIndex].dataset.tab);
+        navigateToTab(tabs[nextIndex].dataset.tab);
         tabs[nextIndex].focus();
     });
+    window.addEventListener("hashchange", syncNavigationFromLocation);
+    window.addEventListener("popstate", syncNavigationFromLocation);
 }
 
 function bindFilters() {
@@ -652,6 +656,7 @@ async function requestJson(path, options = {}) {
 }
 
 function setActiveTab(tab) {
+    if (!TAB_IDS.has(tab)) return;
     state.activeTab = tab;
     document.querySelectorAll("[data-tab]").forEach((button) => {
         const active = button.dataset.tab === tab;
@@ -661,8 +666,31 @@ function setActiveTab(tab) {
     });
     byId("repairs").classList.toggle("is-mobile-hidden", tab !== "repairs");
     byId("cleaning").classList.toggle("is-mobile-hidden", tab !== "cleaning");
+    setNavigationDestination(tab);
+}
+
+function navigateToTab(tab) {
+    if (!TAB_IDS.has(tab)) return;
+    const hash = `#${tab}`;
+    if (window.location.hash !== hash) {
+        window.history.pushState(null, "", hash);
+    }
+    setActiveTab(tab);
+}
+
+function syncNavigationFromLocation() {
+    const destination = window.location.hash.slice(1);
+    if (TAB_IDS.has(destination)) {
+        setActiveTab(destination);
+        return;
+    }
+    setActiveTab("repairs");
+    setNavigationDestination("overview");
+}
+
+function setNavigationDestination(destination) {
     document.querySelectorAll("[data-nav]").forEach((link) => {
-        link.classList.toggle("is-active", link.dataset.nav === tab);
+        link.classList.toggle("is-active", link.dataset.nav === destination);
     });
 }
 
