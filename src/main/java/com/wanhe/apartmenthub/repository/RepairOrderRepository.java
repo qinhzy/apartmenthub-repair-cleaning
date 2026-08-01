@@ -19,6 +19,7 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 @Repository
@@ -222,12 +223,22 @@ public class RepairOrderRepository {
             query.params.add(type.name());
         }
         if (queryText != null && !queryText.isBlank()) {
-            query.sql.append(" AND (LOWER(repair_order.title) LIKE ? OR LOWER(repair_order.description) LIKE ?)");
-            String pattern = "%" + queryText.toLowerCase() + "%";
+            query.sql.append(
+                    " AND (LOWER(repair_order.title) LIKE ? ESCAPE '!'"
+                            + " OR LOWER(repair_order.description) LIKE ? ESCAPE '!')"
+            );
+            String pattern = "%" + escapeLikeLiteral(queryText.toLowerCase(Locale.ROOT)) + "%";
             query.params.add(pattern);
             query.params.add(pattern);
         }
         return query;
+    }
+
+    private String escapeLikeLiteral(String value) {
+        return value
+                .replace("!", "!!")
+                .replace("%", "!%")
+                .replace("_", "!_");
     }
 
     private String selectWithUserNames() {

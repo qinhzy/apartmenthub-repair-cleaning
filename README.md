@@ -12,7 +12,7 @@
 
 ## 维修接口
 
-- `GET /api/repair/page`：维修工单分页查询，支持 `status`、`type` 和 `query` 筛选
+- `GET /api/repair/page`：维修工单分页查询，支持 `status`、`type` 和 `query` 字面子串筛选（`%`、`_` 不会被当作通配符）
 - `POST /api/repair/report`：提交维修申报，成功返回 `201 Created`
 - `PUT /api/repair/assign`：维修派单
 - `PUT /api/repair/complete`：维修完成

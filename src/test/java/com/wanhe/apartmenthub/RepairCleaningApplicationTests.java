@@ -235,6 +235,17 @@ class RepairCleaningApplicationTests {
     }
 
     @Test
+    void repairTextSearchTreatsLikeMetacharactersLiterally() throws Exception {
+        reportRepair("literal_%!_needle_8371", "Contains SQL LIKE metacharacters.");
+        reportRepair("literalXanything!XneedleX8371", "Would match if percent and underscores were wildcards.");
+
+        mockMvc.perform(get("/api/repair/page").param("query", "literal_%!_needle_8371"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.records[0].title").value("literal_%!_needle_8371"));
+    }
+
+    @Test
     void dashboardPageIsServedFromTheApplication() throws Exception {
         mockMvc.perform(get("/"))
                 .andExpect(status().isOk())
@@ -254,5 +265,18 @@ class RepairCleaningApplicationTests {
     private long readId(String json) throws Exception {
         JsonNode node = objectMapper.readTree(json);
         return node.get("id").asLong();
+    }
+
+    private void reportRepair(String title, String description) throws Exception {
+        mockMvc.perform(post("/api/repair/report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(java.util.Map.of(
+                                "title", title,
+                                "description", description,
+                                "repairType", "OTHER",
+                                "priority", "LOW",
+                                "reporterId", 1
+                        ))))
+                .andExpect(status().isCreated());
     }
 }
